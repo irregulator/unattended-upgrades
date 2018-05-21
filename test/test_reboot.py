@@ -29,31 +29,33 @@ class RebootTestCase(unittest.TestCase):
         apt_pkg.config.set(
             "Unattended-Upgrade::Automatic-Reboot-WithUsers", "1")
 
-    @patch("subprocess.call")
+    @patch("subprocess.run")
     def test_no_reboot_done_because_no_stamp(self, mock_call):
         unattended_upgrade.REBOOT_REQUIRED_FILE = "/no/such/file/or/directory"
         unattended_upgrade.reboot_if_requested_and_needed()
         self.assertEqual(mock_call.called, False)
 
-    @patch("subprocess.call")
+    @patch("subprocess.run")
     def test_no_reboot_done_because_no_option(self, mock_call):
         apt_pkg.config.set("Unattended-Upgrade::Automatic-Reboot", "0")
         unattended_upgrade.reboot_if_requested_and_needed()
         self.assertEqual(mock_call.called, False)
 
-    @patch("subprocess.call")
+    @patch("subprocess.run")
     def test_reboot_now(self, mock_call):
         unattended_upgrade.reboot_if_requested_and_needed()
-        mock_call.assert_called_with(["/sbin/shutdown", "-r", "now"])
+        mock_call.assert_called_with(["/sbin/shutdown", "-r", "now"],
+                                     stderr=-1)
 
-    @patch("subprocess.call")
+    @patch("subprocess.run")
     def test_reboot_time(self, mock_call):
         apt_pkg.config.set(
             "Unattended-Upgrade::Automatic-Reboot-Time", "03:00")
         unattended_upgrade.reboot_if_requested_and_needed()
-        mock_call.assert_called_with(["/sbin/shutdown", "-r", "03:00"])
+        mock_call.assert_called_with(["/sbin/shutdown", "-r", "03:00"],
+                                     stderr=-1)
 
-    @patch("subprocess.call")
+    @patch("subprocess.run")
     def test_reboot_withoutusers(self, mock_call):
         """Ensure that a reboot happens when no users are logged in"""
         apt_pkg.config.set(
@@ -61,17 +63,18 @@ class RebootTestCase(unittest.TestCase):
         apt_pkg.config.set(
             "Unattended-Upgrade::Automatic-Reboot-Time", "04:00")
         # some pgm that allways output nothing
-        unattended_upgrade.USERS = "/bin/true"
+        unattended_upgrade.MOCKED_USERS = {'u':{}}
         unattended_upgrade.reboot_if_requested_and_needed()
-        mock_call.assert_called_with(["/sbin/shutdown", "-r", "04:00"])
+        mock_call.assert_called_with(["/sbin/shutdown", "-r", "04:00"],
+                                     stderr=-1)
 
-    @patch("subprocess.call")
+    @patch("subprocess.run")
     def test_reboot_withusers(self, mock_call):
         """Ensure that a reboot does not happen if a user is logged in"""
         apt_pkg.config.set(
             "Unattended-Upgrade::Automatic-Reboot-WithUsers", "0")
         # some pgm that allways output a word
-        unattended_upgrade.USERS = "/bin/uname"
+        unattended_upgrade.MOCKED_USERS = {'u': 'a_user'}
         unattended_upgrade.reboot_if_requested_and_needed()
         self.assertEqual(
             mock_call.called, False,

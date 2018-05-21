@@ -89,6 +89,10 @@ LOCK_FILE = "/var/run/unattended-upgrades.lock"
 # set from the sigint signal handler
 SIGNAL_STOP_REQUEST = False
 
+# This is used to decouple reboot_if_requested_and_needed()
+# and logged_in_users(), as both end up calling suprocess.run()
+MOCKED_USERS = {}
+
 
 class LoggingDateTime:
     """The date/time representation for the dpkg log file timestamps"""
@@ -1194,7 +1198,7 @@ def reboot_if_requested_and_needed():
     # see if we need to check for logged in users
     if not apt_pkg.config.find_b(
             "Unattended-Upgrade::Automatic-Reboot-WithUsers", True):
-        users = logged_in_users()
+        users = MOCKED_USERS.get('u') if MOCKED_USERS else logged_in_users()
         if users:
             msg = gettext.ngettext(
                 "Found %s, but not rebooting because %s is logged in." % (
@@ -1209,14 +1213,12 @@ def reboot_if_requested_and_needed():
         "Unattended-Upgrade::Automatic-Reboot-Time", "now")
     logging.warning("Found %s, rebooting" % REBOOT_REQUIRED_FILE)
     try:
-        shut_proc = Popen(["/sbin/shutdown", "-r", when], stderr=PIPE)
-        _, stderr = shut_proc.communicate(timeout=10)
+        shut_proc = subprocess.run(["/sbin/shutdown", "-r", when], stderr=PIPE)
+        shut_msg = shut_proc.stderr
     except Exception as e:
         logging.error("Failed to issue shutdown, %s", e)
-        shut_proc.kill()
     else:
-        shut_msg = stderr.decode().strip()
-        logging.warning(shut_msg)
+        logging.warning(shut_msg.strip())
 
 
 def write_stamp_file():
